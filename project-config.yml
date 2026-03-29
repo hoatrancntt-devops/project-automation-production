@@ -1,0 +1,59 @@
+#================================================================
+# project-config.yml — CENTRALIZED CONFIGURATION
+# Vị trí: project-automation/project-config.yml (thư mục gốc)
+# Mục đích: Khai báo TẤT CẢ thông số 1 LẦN DUY NHẤT.
+#================================================================
+
+# PROJECT & HCP
+project_name: "project-automation-production"
+hcp_org:       "htg-org-name"
+hcp_workspace: "project-automation-production"
+github_repo:   "hoatrancntt-devops/project-automation-production"
+
+# AWS
+aws_region:    "ap-southeast-1"
+ami_id:        "ami-0672fd5b9210aa093"
+instance_type: "t2.micro"
+
+# PROXMOX ON-PREMISE
+# DEVOPS SERVER (control node)
+devops_server_ip: "172.199.10.150"
+
+# PROXMOX ON-PREMISE
+proxmox_api_url: "https://172.199.10.165:8006"
+proxmox_node:    "promox02"
+vm_template:     "rocky-cloud-init"
+vm_id:           9999
+vm_name:         "project-automation-vm"
+vm_ip:           "172.199.10.180"
+vm_cidr:         "24"
+vm_gateway:      "172.199.10.1"
+vm_cores:        2
+vm_memory:       2048
+vm_disk_size:    20
+vm_bridge:       "vmbr0"
+
+# WIREGUARD VPN
+wg_listen_port: 51820
+wg_server_ip:   "10.0.0.1"
+wg_client_ip:   "10.0.0.2"
+wg_subnet:      "10.0.0.0/24"
+
+# DATABASE (PostgreSQL)
+db_name:       "project_automation"
+db_user:       "appuser"
+pg_version:    "14"
+
+# FLASK WEB APP
+flask_port:    5000
+flask_app_dir: "/opt/flask-app"
+
+# SSH
+ssh_user:      "ubuntu"
+ssh_key_path:  "~/.ssh/id_project_automation"
+
+#================================================================
+# KHÔNG khai báo secrets ở đây!
+#   HCP Variables  → proxmox_api_token, ssh_public_key
+#   Ansible Vault  → db_password, wg_private_key_ec2, wg_private_key_proxmox
+#================================================================
