@@ -54,19 +54,13 @@ resource "aws_security_group" "web" {
   vpc_id = aws_vpc.main.id
   name   = "project-automation-web-sg"
 
-  # ✅ Đúng — mỗi argument 1 dòng
   ingress {
     from_port   = 22
-  to_port     = 22
-  protocol    = "tcp"
-  cidr_blocks = ["0.0.0.0/0"]
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
-ingress {
-    from_port   = 80
-  to_port     = 80
-  protocol    = "tcp"
-  cidr_blocks = ["0.0.0.0/0"]
-  }
+
   ingress {
     from_port   = 80
     to_port     = 80
@@ -111,8 +105,7 @@ resource "aws_instance" "web" {
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.web.id]
   key_name               = aws_key_pair.deployer.key_name
-  # Không có user-data — Ansible sẽ cấu hình sau
-  tags = { Name = "project-automation-web" }
+  tags                   = { Name = "project-automation-web" }
 }
 
 # ============ ALB ============
@@ -129,7 +122,9 @@ resource "aws_lb_target_group" "tg" {
   port     = 5000
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
-  health_check { path = "/" }
+  health_check {
+    path = "/"
+  }
 }
 
 resource "aws_lb_target_group_attachment" "tg_attach" {
@@ -167,12 +162,14 @@ resource "proxmox_virtual_environment_vm" "db" {
   node_name = var.proxmox_node
   vm_id     = 1100
 
-  clone { vm_id = 9000 }
+  clone {
+    vm_id = 9999
+  }
 
   agent {
-  enabled = true
-  timeout = "5m"
-}
+    enabled = true
+    timeout = "5m"
+  }
 
   cpu    { cores = 2 }
   memory { dedicated = 2048 }
@@ -182,7 +179,11 @@ resource "proxmox_virtual_environment_vm" "db" {
   initialization {
     user_data_file_id = proxmox_virtual_environment_file.cloud_init.id
     ip_config {
-      ipv4 { address = 172.199.10.180/24 gateway = 172.199.10.1 }
+      ipv4 {
+        address = "172.199.10.180/24"
+        gateway = "172.199.10.1"
+      }
     }
   }
 }
+
