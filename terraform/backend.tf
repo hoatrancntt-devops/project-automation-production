@@ -10,4 +10,6 @@ terraform {
     }
   }
   required_version = ">= 1.6.0"
+  experiments = ["module_variable_optional_attrs"]
+
 }
