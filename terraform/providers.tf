@@ -1,6 +1,6 @@
 terraform {
   required_version = ">= 1.5"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -20,13 +20,13 @@ terraform {
   }
 }
 
-provider "proxmox" {
-  endpoint = var.proxmox_api_url
-  api_token = var.proxmox_api_token
-  insecure = true
-}
-
 provider "aws" {
   region = var.aws_region
+}
+
+provider "proxmox" {
+  endpoint  = var.proxmox_api_url
+  api_token = var.proxmox_api_token
+  insecure  = true   # ← FIX SSL self-signed cert
 }
 
