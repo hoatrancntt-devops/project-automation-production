@@ -1,8 +1,22 @@
 terraform {
+  required_version = ">= 1.5"
+  
   required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
     proxmox = {
       source  = "bpg/proxmox"
       version = "~> 0.45"
+    }
+  }
+
+  # Thêm backend từ backend.tf vào đây
+  cloud {
+    organization = "htg-org-name"
+    workspaces {
+      name = "project-automation-production"
     }
   }
 }
@@ -10,7 +24,7 @@ terraform {
 provider "proxmox" {
   endpoint = var.proxmox_api_url
   api_token = var.proxmox_api_token
-  insecure = true  # ← THÊM DÒNG NÀY để skip SSL verify
+  insecure = true
 }
 
 provider "aws" {
