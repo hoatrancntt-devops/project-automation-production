@@ -1,0 +1,198 @@
+name: Terraform + Ansible Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - 'ansible/**'
+      - 'project-config.yml'
+
+env:
+  HCP_ORG:       htg-org-name             # khớp organization trong backend.tf
+  HCP_WORKSPACE: project-automation-production  # khớp workspace trong backend.tf
+
+jobs:
+  # ─── JOB 1: Gọi HCP API → Proxmox Agent plan ───────────────
+  plan:
+    name: "① HCP API Plan — Proxmox Agent"
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.create_run.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get HCP Workspace ID
+        id: ws
+        run: |
+          WS_ID=$(curl -sf \
+            -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            "https://app.terraform.io/api/v2/organizations/${{ env.HCP_ORG }}/workspaces/${{ env.HCP_WORKSPACE }}" \
+            | jq -r '.data.id')
+          echo "ws_id=$WS_ID" >> $GITHUB_OUTPUT
+          echo "Workspace ID: $WS_ID"
+
+      - name: Upload Terraform config to HCP    # đóng gói terraform/ gửi lên HCP
+        id: cv
+        run: |
+          CV=$(curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            -H "Content-Type: application/vnd.api+json" \
+            -d '{"data":{"type":"configuration-versions","attributes":{"auto-queue-runs":false}}}' \
+            "https://app.terraform.io/api/v2/workspaces/${{ steps.ws.outputs.ws_id }}/configuration-versions")
+          CV_ID=$(echo "$CV" | jq -r '.data.id')
+          UPLOAD_URL=$(echo "$CV" | jq -r '.data.attributes["upload-url"]')
+          tar -czf config.tar.gz -C terraform .
+          curl -sf -X PUT -H "Content-Type: application/octet-stream" \
+            --data-binary @config.tar.gz "$UPLOAD_URL"
+          echo "cv_id=$CV_ID" >> $GITHUB_OUTPUT
+
+      - name: Create HCP Run (auto-apply=false)    # Agent plan nhưng KHÔNG tự apply
+        id: create_run
+        run: |
+          BODY=$(jq -cn \
+            --arg ws "${{ steps.ws.outputs.ws_id }}" \
+            --arg cv "${{ steps.cv.outputs.cv_id }}" \
+            --arg msg "Push by ${{ github.actor }}: ${{ github.event.head_commit.message }}" \
+            '{data:{type:"runs",attributes:{"auto-apply":false,message:$msg},
+              relationships:{workspace:{data:{type:"workspaces",id:$ws}},
+              "configuration-version":{data:{type:"configuration-versions",id:$cv}}}}}' )
+          RUN_ID=$(curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            -H "Content-Type: application/vnd.api+json" \
+            -d "$BODY" https://app.terraform.io/api/v2/runs | jq -r '.data.id')
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "HCP Run: https://app.terraform.io/app/${{ env.HCP_ORG }}/workspaces/${{ env.HCP_WORKSPACE }}/runs/$RUN_ID"
+
+      - name: Poll — Wait for Proxmox Agent (plan)
+        run: |
+          RUN_ID="${{ steps.create_run.outputs.run_id }}"
+          for i in $(seq 1 36); do
+            STATUS=$(curl -sf \
+              -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+              "https://app.terraform.io/api/v2/runs/$RUN_ID" | jq -r '.data.attributes.status')
+            echo "[$i/36] $STATUS"
+            [[ "$STATUS" == "planned" ]] && break
+            [[ "$STATUS" =~ ^(errored|canceled|force_canceled)$ ]] && \
+              { echo "Plan FAILED: $STATUS"; exit 1; }
+            sleep 10
+          done
+
+      - name: Fetch plan log → GitHub Summary    # CTO đọc plan tại GitHub Actions tab
+        run: |
+          RUN_ID="${{ steps.create_run.outputs.run_id }}"
+          PLAN_ID=$(curl -sf \
+            -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            "https://app.terraform.io/api/v2/runs/$RUN_ID" \
+            | jq -r '.data.relationships.plan.data.id')
+          PLAN_LOG=$(curl -sf \
+            -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            -H "Accept: text/plain" \
+            "https://app.terraform.io/api/v2/plans/$PLAN_ID/logs" | tail -50)
+          {
+            echo "## Terraform Plan — Proxmox Agent"
+            printf "Run ID: \`%s\`\n\n" "$RUN_ID"
+            echo '```'
+            echo "$PLAN_LOG"
+            echo '```'
+            printf "\n[Ẩnh HCP UI](https://app.terraform.io/app/%s/workspaces/%s/runs/%s)\n" \
+              "${{ env.HCP_ORG }}" "${{ env.HCP_WORKSPACE }}" "$RUN_ID"
+          } >> $GITHUB_STEP_SUMMARY
+
+  # ─── JOB 2: CTO Approve → Confirm Run → Agent Apply ───────
+  apply:
+    name: "② Confirm Apply — CTO Approval Required"
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: production       # ← GitHub gửi email → CTO approve tại đây
+    outputs:
+      ec2_ip: ${{ steps.tf_out.outputs.ec2_ip }}
+      vm_ip:  ${{ steps.tf_out.outputs.vm_ip }}
+    steps:
+      - name: Confirm Run on HCP → Agent apply
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            -H "Content-Type: application/vnd.api+json" \
+            -d '{"comment":"Approved by CTO via GitHub Environment gate"}' \
+            "https://app.terraform.io/api/v2/runs/${{ needs.plan.outputs.run_id }}/actions/apply"
+          echo "Apply confirmed: ${{ needs.plan.outputs.run_id }}"
+
+      - name: Poll — Wait for Agent (apply)
+        run: |
+          RUN_ID="${{ needs.plan.outputs.run_id }}"
+          for i in $(seq 1 60); do
+            STATUS=$(curl -sf \
+              -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+              "https://app.terraform.io/api/v2/runs/$RUN_ID" | jq -r '.data.attributes.status')
+            echo "[$i/60] $STATUS"
+            [[ "$STATUS" == "applied" ]] && { echo "Apply DONE!"; break; }
+            [[ "$STATUS" =~ ^(errored|canceled|force_canceled)$ ]] && \
+              { echo "Apply FAILED: $STATUS"; exit 1; }
+            sleep 10
+          done
+
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
+      - name: Get Output IPs từ HCP state
+        id: tf_out
+        run: |
+          terraform init -input=false
+          echo "ec2_ip=$(terraform output -raw ec2_public_ip)" >> $GITHUB_OUTPUT
+          echo "vm_ip=$(terraform output -raw proxmox_vm_ip)"  >> $GITHUB_OUTPUT
+        working-directory: terraform
+
+  # ─── JOB 3: Ansible Deploy — tự động sau khi apply ─────
+  ansible-deploy:
+    name: "③ Ansible Deploy — AWS + Proxmox + Phần mềm"
+    needs: apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ansible + Collections
+        run: |
+          pip install ansible
+          ansible-galaxy collection install community.postgresql
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ needs.apply.outputs.ec2_ip }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ needs.apply.outputs.vm_ip }}  >> ~/.ssh/known_hosts
+
+      - name: Generate Ansible Inventory từ Terraform output
+        run: |
+          cat > ansible/inventory/hosts.yml << EOF
+          all:
+            children:
+              ec2:
+                hosts:
+                  ${{ needs.apply.outputs.ec2_ip }}:
+                    ansible_user: rocky
+                    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+              proxmox_vm:
+                hosts:
+                  ${{ needs.apply.outputs.vm_ip }}:
+                    ansible_user: rocky
+                    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+          EOF
+
+      - name: Wait for SSH ready    # Chờ EC2/VM boot xong
+        run: |
+          sleep 30
+          ansible all -i ansible/inventory/hosts.yml -m ping --timeout=60
+
+      - name: Run Ansible Playbook   # Deploy toàn bộ: WireGuard + Flask + PostgreSQL
+        run: |
+          ansible-playbook \
+            -i ansible/inventory/hosts.yml \
+            ansible/site.yml \
+            --vault-password-file <(echo "${{ secrets.ANSIBLE_VAULT_PASS }}")
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
