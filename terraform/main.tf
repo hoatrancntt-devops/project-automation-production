@@ -143,10 +143,12 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+# ============ PROXMOX ============
+# Upload cloud-init file to Proxmox datastore via SSH
 resource "null_resource" "cloud_init_upload" {
   connection {
     type     = "ssh"
-    host     = var.proxmox_host_ip       # IP của Proxmox host
+    host     = var.proxmox_host_ip
     user     = "root"
     password = var.proxmox_ssh_password
   }
@@ -159,34 +161,16 @@ resource "null_resource" "cloud_init_upload" {
   }
 }
 
+# Note: VM cloning is handled by Ansible playbook after Terraform apply
+# This bypasses the SSL certificate issue with bpg/proxmox provider
+# See: ansible/proxmox_vm.yml
 
-resource "proxmox_virtual_environment_vm" "db" {
-  name      = "project-automation-db"
-  node_name = var.proxmox_node
-  vm_id     = 1100
+output "cloud_init_file" {
+  value       = "Uploaded to: /var/lib/vz/snippets/project-automation-ci.yml"
+  description = "Cloud-init file location on Proxmox host"
+}
 
-  clone { vm_id = 9999 }
-
-  agent {
-    enabled = true
-    timeout = "5m"
-  }
-  cpu     { cores = 2 }
-  memory  { dedicated = 2048 }
-  network_device { bridge = "vmbr0" }
-
-  initialization {
-    # ✅ Dùng path trực tiếp thay vì file_id
-    user_data_file_id = "local:snippets/project-automation-ci.yml"
-
-    ip_config {
-      ipv4 {
-        address = "172.199.10.180/24"
-        gateway = "172.199.10.1"
-      }
-    }
-  }
-
-  # ✅ Đảm bảo upload file trước khi tạo VM
-  depends_on = [null_resource.cloud_init_upload]
+output "proxmox_vm_ip" {
+  value       = var.proxmox_vm_ip
+  description = "Target IP for Proxmox VM (configure after VM creation)"
 }

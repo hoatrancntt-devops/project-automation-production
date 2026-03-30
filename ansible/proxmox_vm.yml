@@ -1,0 +1,87 @@
+---
+# Ansible playbook to create Proxmox VM after Terraform apply
+# Usage: ansible-playbook proxmox_vm.yml
+# This is an alternative to using the create_proxmox_vm.sh script
+
+- name: Create Proxmox VM
+  hosts: proxmox_host
+  gather_facts: no
+  vars:
+    proxmox_api_url: "https://{{ proxmox_host }}:8006/api2/json"
+    template_vm_id: 9999
+    new_vm_id: 1100
+    new_vm_name: "project-automation-db"
+    new_vm_ip: "172.199.10.180"
+    new_vm_cidr: "24"
+    new_vm_gw: "172.199.10.1"
+
+  tasks:
+    - name: Clone VM from template
+      uri:
+        url: "{{ proxmox_api_url }}/nodes/{{ proxmox_node }}/qemu/{{ template_vm_id }}/clone"
+        method: POST
+        headers:
+          Authorization: "PVEAPIToken={{ proxmox_api_token }}"
+        body_format: json
+        body:
+          newid: "{{ new_vm_id }}"
+          name: "{{ new_vm_name }}"
+          full: 1
+        validate_certs: no
+      register: clone_result
+      failed_when: "'errors' in clone_result"
+
+    - name: Wait for VM to appear
+      uri:
+        url: "{{ proxmox_api_url }}/nodes/{{ proxmox_node }}/qemu/{{ new_vm_id }}/status/current"
+        method: GET
+        headers:
+          Authorization: "PVEAPIToken={{ proxmox_api_token }}"
+        validate_certs: no
+      register: vm_status
+      until: "'data' in vm_status.json"
+      retries: 30
+      delay: 2
+
+    - name: Configure cloud-init
+      uri:
+        url: "{{ proxmox_api_url }}/nodes/{{ proxmox_node }}/qemu/{{ new_vm_id }}/config"
+        method: PUT
+        headers:
+          Authorization: "PVEAPIToken={{ proxmox_api_token }}"
+        body_format: form-urlencoded
+        body:
+          cicustom: "local:snippets/project-automation-ci.yml"
+        validate_certs: no
+
+    - name: Set IP configuration
+      uri:
+        url: "{{ proxmox_api_url }}/nodes/{{ proxmox_node }}/qemu/{{ new_vm_id }}/config"
+        method: PUT
+        headers:
+          Authorization: "PVEAPIToken={{ proxmox_api_token }}"
+        body_format: form-urlencoded
+        body:
+          ipconfig0: "ip={{ new_vm_ip }}/{{ new_vm_cidr }},gw={{ new_vm_gw }}"
+        validate_certs: no
+
+    - name: Start VM
+      uri:
+        url: "{{ proxmox_api_url }}/nodes/{{ proxmox_node }}/qemu/{{ new_vm_id }}/status/start"
+        method: POST
+        headers:
+          Authorization: "PVEAPIToken={{ proxmox_api_token }}"
+        validate_certs: no
+
+    - name: Wait for VM to boot
+      pause:
+        seconds: 30
+
+    - name: VM creation summary
+      debug:
+        msg:
+          - "✅ Proxmox VM created successfully!"
+          - "   VM ID: {{ new_vm_id }}"
+          - "   VM Name: {{ new_vm_name }}"
+          - "   VM IP: {{ new_vm_ip }}/{{ new_vm_cidr }}"
+          - "   Gateway: {{ new_vm_gw }}"
