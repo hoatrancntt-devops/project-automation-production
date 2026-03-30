@@ -12,7 +12,6 @@ terraform {
     }
   }
 
-  # Thêm backend từ backend.tf vào đây
   cloud {
     organization = "htg-org-name"
     workspaces {
@@ -30,3 +29,4 @@ provider "proxmox" {
 provider "aws" {
   region = var.aws_region
 }
+
