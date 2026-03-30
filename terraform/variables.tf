@@ -75,4 +75,10 @@ variable "AWS_SECRET_ACCESS_KEY" {
   type        = string
   sensitive   = true
 }
-
+variable "proxmox_node" {
+  default = "proxmox02"   # tên node Proxmox thực tế
+}
+variable "proxmox_host_ip" {
+  description = "Proxmox host IP for SSH connection"
+  default     = "172.199.10.165"
+}

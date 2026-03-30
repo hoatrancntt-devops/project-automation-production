@@ -143,41 +143,39 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# ============ PROXMOX VM ============
-resource "proxmox_virtual_environment_file" "cloud_init" {
-  content_type = "snippets"
-  datastore_id = "local"
-  node_name    = var.proxmox_node
+resource "null_resource" "cloud_init_upload" {
+  connection {
+    type     = "ssh"
+    host     = var.proxmox_host_ip       # IP của Proxmox host
+    user     = "root"
+    password = var.proxmox_ssh_password
+  }
 
-  source_raw {
-    data = templatefile("${path.module}/cloud-init-basic.cfg", {
+  provisioner "file" {
+    content = templatefile("${path.module}/cloud-init-basic.cfg", {
       ssh_public_key = var.ssh_public_key
     })
-    file_name = "project-automation-ci.yml"
+    destination = "/var/lib/vz/snippets/project-automation-ci.yml"
   }
 }
+
 
 resource "proxmox_virtual_environment_vm" "db" {
   name      = "project-automation-db"
   node_name = var.proxmox_node
   vm_id     = 1100
 
-  clone {
-    vm_id = 9999
-  }
+  clone { vm_id = 9999 }
 
-  agent {
-    enabled = true
-    timeout = "5m"
-  }
-
-  cpu    { cores = 2 }
-  memory { dedicated = 2048 }
-
+  agent   { enabled = true; timeout = "5m" }
+  cpu     { cores = 2 }
+  memory  { dedicated = 2048 }
   network_device { bridge = "vmbr0" }
 
   initialization {
-    user_data_file_id = proxmox_virtual_environment_file.cloud_init.id
+    # ✅ Dùng path trực tiếp thay vì file_id
+    user_data_file_id = "local:snippets/project-automation-ci.yml"
+
     ip_config {
       ipv4 {
         address = "172.199.10.180/24"
@@ -185,4 +183,7 @@ resource "proxmox_virtual_environment_vm" "db" {
       }
     }
   }
+
+  # ✅ Đảm bảo upload file trước khi tạo VM
+  depends_on = [null_resource.cloud_init_upload]
 }
