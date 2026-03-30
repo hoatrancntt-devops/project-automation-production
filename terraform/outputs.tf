@@ -5,7 +5,7 @@ output "ec2_public_ip" {
 
 output "proxmox_vm_ip" {
   description = "IP address of Proxmox VM"
-  value       = proxmox_vm_qemu.vm.default_ipv4_address
+  value       = proxmox_virtual_environment_vm.db.ipv4_addresses[1][0]
 }
 
 output "alb_dns" {

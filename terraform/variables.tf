@@ -52,3 +52,26 @@ variable "proxmox_vm_gateway" {
 variable "vm_template" {
   default = "rocky-cloud-init"
 }
+variable "proxmox_api_token" {
+  description = "Proxmox API token (terraform@pam!tf-token=UUID)"
+  type        = string
+  sensitive   = true
+}
+
+variable "proxmox_ssh_password" {
+  description = "Proxmox SSH password for cloud-init upload"
+  type        = string
+  sensitive   = true
+}
+
+variable "AWS_ACCESS_KEY_ID" {
+  description = "AWS Access Key ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "AWS_SECRET_ACCESS_KEY" {
+  description = "AWS Secret Access Key"
+  type        = string
+  sensitive   = true
+}
