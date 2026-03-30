@@ -170,7 +170,6 @@ output "cloud_init_file" {
   description = "Cloud-init file location on Proxmox host"
 }
 
-#output "proxmox_vm_ip" {
-#  value       = var.proxmox_vm_ip
-#  description = "Target IP for Proxmox VM (configure after VM creation)"
-#:x}
+output "proxmox_vm_ip" {
+  value = proxmox_virtual_environment_vm.vm.ipv4_addresses[1][0]
+}
