@@ -27,6 +27,13 @@ provider "aws" {
 provider "proxmox" {
   endpoint  = var.proxmox_api_url
   api_token = var.proxmox_api_token
-  insecure  = true   # ← FIX SSL self-signed cert
+  insecure  = true
+
+  ssh {                                    # ← THÊM BLOCK NÀY
+    agent    = false
+    username = "root"
+    password = var.proxmox_ssh_password    # cần khai báo variable này
+  }
 }
+
 
