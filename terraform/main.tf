@@ -167,7 +167,10 @@ resource "proxmox_virtual_environment_vm" "db" {
 
   clone { vm_id = 9999 }
 
-  agent   { enabled = true; timeout = "5m" }
+  agent {
+    enabled = true
+    timeout = "5m"
+  }
   cpu     { cores = 2 }
   memory  { dedicated = 2048 }
   network_device { bridge = "vmbr0" }

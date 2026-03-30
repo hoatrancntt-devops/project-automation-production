@@ -20,14 +20,26 @@ variable "proxmox_api_url" {
   default = "https://172.199.10.165:8006/api2/json"
 }
 
-variable "proxmox_password" {
-  description = "Proxmox root password"
+variable "proxmox_api_token" {
+  description = "Proxmox API token (terraform@pam!tf-token=UUID)"
+  type        = string
+  sensitive   = true
+}
+
+variable "proxmox_ssh_password" {
+  description = "Proxmox root SSH password"
   type        = string
   sensitive   = true
 }
 
 variable "proxmox_node" {
-  default = "proxmox02"
+  description = "Proxmox node name"
+  default     = "proxmox02"
+}
+
+variable "proxmox_host_ip" {
+  description = "Proxmox host IP for SSH connection"
+  default     = "172.199.10.165"
 }
 
 variable "proxmox_vm_id" {
@@ -40,7 +52,7 @@ variable "proxmox_vm_ip" {
 }
 
 variable "proxmox_vm_cidr" {
-  description = "CIDR notation for Proxmox VM network"
+  description = "CIDR prefix for Proxmox VM network"
   default     = "24"
 }
 
@@ -51,34 +63,4 @@ variable "proxmox_vm_gateway" {
 
 variable "vm_template" {
   default = "rocky-cloud-init"
-}
-variable "proxmox_api_token" {
-  description = "Proxmox API token (terraform@pam!tf-token=UUID)"
-  type        = string
-  sensitive   = true
-}
-
-variable "proxmox_ssh_password" {
-  description = "Proxmox SSH password for cloud-init upload"
-  type        = string
-  sensitive   = true
-}
-
-variable "AWS_ACCESS_KEY_ID" {
-  description = "AWS Access Key ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "AWS_SECRET_ACCESS_KEY" {
-  description = "AWS Secret Access Key"
-  type        = string
-  sensitive   = true
-}
-variable "proxmox_node" {
-  default = "proxmox02"   # tên node Proxmox thực tế
-}
-variable "proxmox_host_ip" {
-  description = "Proxmox host IP for SSH connection"
-  default     = "172.199.10.165"
 }

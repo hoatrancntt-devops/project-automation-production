@@ -29,11 +29,9 @@ provider "proxmox" {
   api_token = var.proxmox_api_token
   insecure  = true
 
-  ssh {                                    # ← THÊM BLOCK NÀY
+  ssh {
     agent    = false
     username = "root"
-    password = var.proxmox_ssh_password    # cần khai báo variable này
+    password = var.proxmox_ssh_password
   }
 }
-
-
