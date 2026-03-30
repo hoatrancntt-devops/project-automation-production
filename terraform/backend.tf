@@ -1,10 +1,4 @@
 terraform {
-  cloud {
-    organization = "htg-org-name"
-    workspaces {
-      name = "project-automation-production"
-    }
-  }
   required_providers {
     aws = {
       source  = "hashicorp/aws"
