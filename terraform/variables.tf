@@ -75,7 +75,4 @@ variable "AWS_SECRET_ACCESS_KEY" {
   type        = string
   sensitive   = true
 }
-variable "proxmox_node" {
-  default = "proxmox02"   # tên node Proxmox thực tế
-}
 
