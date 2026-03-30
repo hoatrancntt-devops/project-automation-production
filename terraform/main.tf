@@ -169,7 +169,7 @@ resource "proxmox_virtual_environment_vm" "db" {
 
   clone { vm_id = 9000 }
 
-  agent { enabled = true; timeout = "5m" }
+  agent { enabled = true timeout = "5m" }
 
   cpu    { cores = 2 }
   memory { dedicated = 2048 }
@@ -179,7 +179,7 @@ resource "proxmox_virtual_environment_vm" "db" {
   initialization {
     user_data_file_id = proxmox_virtual_environment_file.cloud_init.id
     ip_config {
-      ipv4 { address = "172.199.10.180/24"; gateway = "172.199.10.1" }
+      ipv4 { address = "172.199.10.180/24" gateway = "172.199.10.1" }
     }
   }
 }
